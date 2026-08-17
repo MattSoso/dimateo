@@ -1,0 +1,10 @@
+{
+  "name": "DiMateo — kalkulator pizzy",
+  "short_name": "DiMateo",
+  "description": "Kalkulator składników i proporcji ciasta na pizzę.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f7fb",
+  "theme_color": "#5b55d9",
+  "icons": []
+}
