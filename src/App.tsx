@@ -216,7 +216,7 @@ export default function Home() {
   const proofingHours = parseValue(recipe.proofingHours);
   const balls = parseValue(recipe.balls);
 
-  const resetRecipe = () => {
+  const restoreDefaults = () => {
     setRecipe(DEFAULT_RECIPE);
     setAutoYeast(true);
     setCopyStatus("idle");
@@ -330,7 +330,16 @@ export default function Home() {
         </div>
 
         <aside className="result-card" aria-live="polite">
-          <div className="result-card__top"><p>Twój przepis</p><button type="button" onClick={resetRecipe}>Resetuj</button></div>
+          <div className="result-card__top">
+            <p>Twój przepis</p>
+            <button
+              type="button"
+              onClick={restoreDefaults}
+              title="Przywróć: hydracja 65%, sól 2,8%, 1 pizza po 260 g i 3 godziny wyrastania"
+            >
+              Przywróć domyślne
+            </button>
+          </div>
           {!result ? (
             <div className="result-empty" role="alert"><span>!</span><h2>Sprawdź wprowadzone dane</h2><p>Popraw oznaczone pola, aby zobaczyć dokładny przepis.</p></div>
           ) : (
