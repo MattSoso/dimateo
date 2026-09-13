@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type FieldName = "balls" | "ballWeight" | "hydration" | "proofingHours" | "saltPercent" | "manualYeast";
 type DraftRecipe = Record<FieldName, string>;
+type YeastType = "fresh" | "dry";
 
 const DEFAULT_RECIPE: DraftRecipe = {
   balls: "1",
@@ -14,8 +15,9 @@ const DEFAULT_RECIPE: DraftRecipe = {
   manualYeast: "0.86",
 };
 
-// Krzywa drożdży zachowana z oryginalnego projektu DiMateo.
-const YEAST_CURVE = 0.0215;
+// Krzywa dla drożdży świeżych zachowana z oryginalnego projektu DiMateo.
+const FRESH_YEAST_CURVE = 0.0215;
+const DRY_TO_FRESH_RATIO = 7 / 25;
 const STORAGE_KEY = "dimateo-recipe-v1";
 const parseValue = (value: string) => Number(value.replace(",", "."));
 const format = (value: number, digits = 0) => new Intl.NumberFormat("pl-PL", {
@@ -57,7 +59,7 @@ function validate(recipe: DraftRecipe, autoYeast: boolean) {
   return errors;
 }
 
-function calculateRecipe(recipe: DraftRecipe, autoYeast: boolean) {
+function calculateRecipe(recipe: DraftRecipe, autoYeast: boolean, yeastType: YeastType) {
   const balls = parseValue(recipe.balls);
   const ballWeight = parseValue(recipe.ballWeight);
   const hydration = parseValue(recipe.hydration) / 100;
@@ -67,7 +69,8 @@ function calculateRecipe(recipe: DraftRecipe, autoYeast: boolean) {
   const targetWeight = balls * ballWeight;
 
   if (autoYeast) {
-    const yeastRatio = YEAST_CURVE / Math.pow(proofingHours, 1.25);
+    const freshYeastRatio = FRESH_YEAST_CURVE / Math.pow(proofingHours, 1.25);
+    const yeastRatio = yeastType === "dry" ? freshYeastRatio * DRY_TO_FRESH_RATIO : freshYeastRatio;
     const flour = targetWeight / (1 + hydration + saltRatio + yeastRatio);
     return {
       flour,
@@ -170,22 +173,26 @@ function pizzaWord(count: number) {
 export default function Home() {
   const [recipe, setRecipe] = useState<DraftRecipe>(DEFAULT_RECIPE);
   const [autoYeast, setAutoYeast] = useState(true);
+  const [yeastType, setYeastType] = useState<YeastType>("fresh");
   const [storageReady, setStorageReady] = useState(false);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
 
   useEffect(() => {
     let savedRecipe: DraftRecipe | null = null;
     let savedAutoYeast: boolean | null = null;
+    let savedYeastType: YeastType | null = null;
     try {
       const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null") as {
         recipe?: Partial<DraftRecipe>;
         autoYeast?: boolean;
+        yeastType?: YeastType;
       } | null;
       const fields = Object.keys(DEFAULT_RECIPE) as FieldName[];
       if (saved?.recipe && fields.every((field) => typeof saved.recipe?.[field] === "string")) {
         savedRecipe = saved.recipe as DraftRecipe;
       }
       if (typeof saved?.autoYeast === "boolean") savedAutoYeast = saved.autoYeast;
+      if (saved?.yeastType === "fresh" || saved?.yeastType === "dry") savedYeastType = saved.yeastType;
     } catch {
       window.localStorage.removeItem(STORAGE_KEY);
     }
@@ -193,6 +200,7 @@ export default function Home() {
     const timer = window.setTimeout(() => {
       if (savedRecipe) setRecipe(savedRecipe);
       if (savedAutoYeast !== null) setAutoYeast(savedAutoYeast);
+      if (savedYeastType) setYeastType(savedYeastType);
       setStorageReady(true);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -200,11 +208,14 @@ export default function Home() {
 
   useEffect(() => {
     if (!storageReady) return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ recipe, autoYeast }));
-  }, [recipe, autoYeast, storageReady]);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ recipe, autoYeast, yeastType }));
+  }, [recipe, autoYeast, yeastType, storageReady]);
   const errors = useMemo(() => validate(recipe, autoYeast), [recipe, autoYeast]);
   const isValid = Object.keys(errors).length === 0;
-  const result = useMemo(() => isValid ? calculateRecipe(recipe, autoYeast) : null, [recipe, autoYeast, isValid]);
+  const result = useMemo(
+    () => isValid ? calculateRecipe(recipe, autoYeast, yeastType) : null,
+    [recipe, autoYeast, yeastType, isValid],
+  );
 
   const updateField = (field: FieldName, value: string) => setRecipe((current) => ({ ...current, [field]: value }));
   const changeBalls = (direction: number) => {
@@ -216,9 +227,22 @@ export default function Home() {
   const proofingHours = parseValue(recipe.proofingHours);
   const balls = parseValue(recipe.balls);
 
+  const changeYeastType = (nextType: YeastType) => {
+    if (nextType === yeastType) return;
+    const currentAmount = parseValue(recipe.manualYeast);
+    if (Number.isFinite(currentAmount)) {
+      const convertedAmount = nextType === "dry"
+        ? currentAmount * DRY_TO_FRESH_RATIO
+        : currentAmount / DRY_TO_FRESH_RATIO;
+      updateField("manualYeast", String(Number(convertedAmount.toFixed(2))));
+    }
+    setYeastType(nextType);
+  };
+
   const restoreDefaults = () => {
     setRecipe(DEFAULT_RECIPE);
     setAutoYeast(true);
+    setYeastType("fresh");
     setCopyStatus("idle");
   };
 
@@ -229,7 +253,7 @@ export default function Home() {
       `Mąka: ${format(result.flour)} g`,
       `Woda: ${format(result.water)} g (${format(parseValue(recipe.hydration), 1)}%)`,
       `Sól: ${format(result.salt, 1)} g (${format(parseValue(recipe.saltPercent), 1)}%)`,
-      `Drożdże: ${format(result.yeast, 2)} g`,
+      `Drożdże ${yeastType === "fresh" ? "świeże" : "suche"}: ${format(result.yeast, 2)} g`,
       `Wyrastanie: ${format(proofingHours, 1)} h`,
     ].join("\n");
 
@@ -318,6 +342,17 @@ export default function Home() {
             <NumberField id="saltPercent" label="Sól" value={recipe.saltPercent} unit="%" hint="Procent względem mąki"
               error={errors.saltPercent} min={0} max={5} step="0.1" onChange={(value) => updateField("saltPercent", value)} />
             <div className="yeast-setting">
+              <div className="yeast-type">
+                <strong id="yeast-type-label">Rodzaj drożdży</strong>
+                <div className={`yeast-type__toggle ${yeastType === "dry" ? "is-dry" : ""}`} role="group" aria-labelledby="yeast-type-label">
+                  <button type="button" className={yeastType === "fresh" ? "is-active" : ""}
+                    aria-pressed={yeastType === "fresh"} onClick={() => changeYeastType("fresh")}>Świeże</button>
+                  <button type="button" className={yeastType === "dry" ? "is-active" : ""}
+                    aria-pressed={yeastType === "dry"} onClick={() => changeYeastType("dry")}>Suche</button>
+                </div>
+                <small>7 g suchych = 25 g świeżych</small>
+              </div>
+              <div className="yeast-divider" />
               <div className="toggle-row">
                 <div><strong>Drożdże automatycznie</strong><small>Według czasu wyrastania</small></div>
                 <button type="button" role="switch" aria-checked={autoYeast} className={`switch ${autoYeast ? "is-on" : ""}`}
@@ -350,7 +385,8 @@ export default function Home() {
                 <IngredientRow symbol="M" name="Mąka" detail="100%" value={`${format(result.flour)} g`} />
                 <IngredientRow symbol="W" name="Woda" detail={`${format(parseValue(recipe.hydration), 1)}%`} value={`${format(result.water)} g`} />
                 <IngredientRow symbol="S" name="Sól" detail={`${format(parseValue(recipe.saltPercent), 1)}%`} value={`${format(result.salt, 1)} g`} />
-                <IngredientRow symbol="D" name="Drożdże" detail={`${format(result.yeastPercent, 2)}%`} value={`${format(result.yeast, 2)} g`} />
+                <IngredientRow symbol="D" name={`Drożdże ${yeastType === "fresh" ? "świeże" : "suche"}`}
+                  detail={`${format(result.yeastPercent, 2)}%`} value={`${format(result.yeast, 2)} g`} />
               </ul>
               <div className="recipe-note"><span aria-hidden="true">✦</span><p><strong>Wskazówka DiMateo</strong>
                 {proofingHours >= 24 ? "Długi czas wyrastania — zaplanuj chłodną fermentację i wyjmij ciasto wcześniej."
