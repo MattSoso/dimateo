@@ -162,6 +162,44 @@ button:focus-visible, input:focus-visible, a:focus-visible {
 .presets button.is-active { color: #fff; background: var(--primary); box-shadow: 0 5px 14px rgba(91,85,217,.26); }
 .two-fields { margin-top: 24px; align-items: start; }
 .yeast-setting { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); padding: 14px; box-shadow: var(--shadow-1); }
+.yeast-type > strong, .yeast-type > small { display: block; }
+.yeast-type > strong { margin-bottom: 9px; font-size: 12px; font-weight: 680; }
+.yeast-type > small { margin-top: 7px; color: var(--muted); font-size: 10px; }
+.yeast-type__toggle {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 38px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+.yeast-type__toggle::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  height: 32px;
+  border-radius: 9px;
+  background: var(--primary);
+  box-shadow: 0 3px 9px rgba(91,85,217,.22);
+  transition: transform .2s ease;
+}
+.yeast-type__toggle.is-dry::before { transform: translateX(100%); }
+.yeast-type__toggle button {
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 680;
+  transition: color .18s ease;
+}
+.yeast-type__toggle button.is-active { color: #fff; }
+.yeast-divider { height: 1px; margin: 14px 0; background: var(--line); }
 .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .toggle-row strong, .toggle-row small { display: block; }
 .toggle-row strong { font-size: 12px; font-weight: 680; }
