@@ -24,6 +24,28 @@ const format = (value: number, digits = 0) => new Intl.NumberFormat("pl-PL", {
   minimumFractionDigits: digits,
   maximumFractionDigits: digits,
 }).format(value);
+const formatTime = (date: Date) => new Intl.DateTimeFormat("pl-PL", {
+  hour: "2-digit",
+  minute: "2-digit",
+}).format(date);
+
+function calendarDayNumber(date: Date) {
+  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000;
+}
+
+function formatReadyMoment(start: Date, readyAt: Date) {
+  const dayOffset = calendarDayNumber(readyAt) - calendarDayNumber(start);
+  const time = formatTime(readyAt);
+  if (dayOffset === 0) return `dziś o ${time}`;
+  if (dayOffset === 1) return `jutro o ${time}`;
+
+  const date = new Intl.DateTimeFormat("pl-PL", {
+    day: "numeric",
+    month: "long",
+    ...(readyAt.getFullYear() !== start.getFullYear() ? { year: "numeric" as const } : {}),
+  }).format(readyAt);
+  return `${date} o ${time}`;
+}
 
 function validate(recipe: DraftRecipe, autoYeast: boolean) {
   const errors: Partial<Record<FieldName, string>> = {};
@@ -176,6 +198,7 @@ export default function Home() {
   const [yeastType, setYeastType] = useState<YeastType>("fresh");
   const [storageReady, setStorageReady] = useState(false);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+  const [currentTime, setCurrentTime] = useState(() => new Date());
 
   useEffect(() => {
     let savedRecipe: DraftRecipe | null = null;
@@ -210,6 +233,12 @@ export default function Home() {
     if (!storageReady) return;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ recipe, autoYeast, yeastType }));
   }, [recipe, autoYeast, yeastType, storageReady]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const errors = useMemo(() => validate(recipe, autoYeast), [recipe, autoYeast]);
   const isValid = Object.keys(errors).length === 0;
   const result = useMemo(
@@ -217,7 +246,10 @@ export default function Home() {
     [recipe, autoYeast, yeastType, isValid],
   );
 
-  const updateField = (field: FieldName, value: string) => setRecipe((current) => ({ ...current, [field]: value }));
+  const updateField = (field: FieldName, value: string) => {
+    if (field === "proofingHours") setCurrentTime(new Date());
+    setRecipe((current) => ({ ...current, [field]: value }));
+  };
   const changeBalls = (direction: number) => {
     const current = parseValue(recipe.balls);
     const next = Math.min(30, Math.max(1, (Number.isFinite(current) ? current : 1) + direction));
@@ -226,6 +258,10 @@ export default function Home() {
   const hydration = parseValue(recipe.hydration);
   const proofingHours = parseValue(recipe.proofingHours);
   const balls = parseValue(recipe.balls);
+  const readyAt = !errors.proofingHours
+    ? new Date(currentTime.getTime() + proofingHours * 60 * 60 * 1000)
+    : null;
+  const readyTimeLabel = readyAt ? formatReadyMoment(currentTime, readyAt) : null;
 
   const changeYeastType = (nextType: YeastType) => {
     if (nextType === yeastType) return;
@@ -255,6 +291,7 @@ export default function Home() {
       `Sól: ${format(result.salt, 1)} g (${format(parseValue(recipe.saltPercent), 1)}%)`,
       `Drożdże ${yeastType === "fresh" ? "świeże" : "suche"}: ${format(result.yeast, 2)} g`,
       `Wyrastanie: ${format(proofingHours, 1)} h`,
+      ...(readyTimeLabel ? [`Gotowe: ${readyTimeLabel}`] : []),
     ].join("\n");
 
     try {
@@ -335,6 +372,12 @@ export default function Home() {
                   aria-pressed={proofingHours === hours} onClick={() => updateField("proofingHours", String(hours))}>{hours} h</button>
               ))}
             </div>
+            {readyTimeLabel && (
+              <div className="ready-time" aria-live="polite">
+                <span className="ready-time__clock" aria-hidden="true" />
+                <p><small>Jeśli zaczynasz teraz</small><strong>Ciasto będzie gotowe {readyTimeLabel}</strong></p>
+              </div>
+            )}
             <p className={errors.proofingHours ? "field__error" : "sr-only"}>{errors.proofingHours}</p>
           </div>
 

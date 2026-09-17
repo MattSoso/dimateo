@@ -9,6 +9,7 @@ Aplikacja działa publicznie pod adresem: [dimateo.creativecrafts.pl](https://di
 - obliczanie ilości mąki, wody, soli i drożdży
 - liczba pizz i waga pojedynczej kulki
 - hydracja oraz czas wyrastania
+- przewidywana godzina gotowości ciasta na podstawie bieżącego czasu
 - drożdże świeże lub suche (przelicznik 25 g świeżych = 7 g suchych)
 - automatyczna lub ręczna ilość drożdży
 - walidacja wprowadzanych danych
